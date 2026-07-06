@@ -5,11 +5,11 @@ const prisma = new PrismaClient();
 
 const PERMISSIONS_BY_ROLE: Record<string, string[]> = {
   super_admin: ["*"],
-  first_level_manager: ["dashboard", "employees", "teams", "projects", "tasks", "attendance", "leave", "payroll", "performance", "kpi", "okr", "analytics", "reports", "settings", "my-work", "employee-profile", "eod"],
-  second_level_manager: ["dashboard", "employees", "teams", "projects", "tasks", "attendance", "leave", "performance", "kpi", "okr", "analytics", "reports", "my-work", "employee-profile", "eod"],
-  manager: ["dashboard", "employees", "teams", "projects", "tasks", "attendance", "leave", "performance", "my-work", "employee-profile", "knowledge", "eod"],
+  first_level_manager: ["dashboard", "employees", "teams", "projects", "tasks", "attendance", "leave", "payroll", "kpi", "okr", "analytics", "reports", "settings", "my-work", "employee-profile", "eod"],
+  second_level_manager: ["dashboard", "employees", "teams", "projects", "tasks", "attendance", "leave", "kpi", "okr", "analytics", "reports", "my-work", "employee-profile", "eod"],
+  manager: ["dashboard", "employees", "teams", "projects", "tasks", "attendance", "leave", "my-work", "employee-profile", "knowledge", "eod"],
   team_lead: ["dashboard", "projects", "tasks", "attendance", "leave", "my-work", "employee-profile", "knowledge", "calendar", "meetings", "eod"],
-  hr_admin: ["dashboard", "employees", "departments", "teams", "attendance", "leave", "payroll", "performance", "my-work", "employee-profile", "settings", "roles", "audit", "reports", "knowledge", "eod"],
+  hr_admin: ["dashboard", "employees", "departments", "teams", "attendance", "leave", "payroll", "my-work", "employee-profile", "settings", "roles", "audit", "reports", "knowledge", "eod"],
   employee: ["dashboard", "my-work", "tasks", "attendance", "leave", "calendar", "meetings", "knowledge", "profile", "eod"],
 };
 

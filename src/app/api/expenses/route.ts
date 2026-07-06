@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isHrAdmin } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
 const CATEGORIES = ["Benefits", "Operations", "Marketing", "Infrastructure", "Travel", "Training"];
+
+function currentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 function monthLabel(m: string) {
   const [y, mo] = m.split("-").map(Number);
@@ -89,4 +95,36 @@ export async function GET(req: NextRequest) {
     costByDept: Array.from(deptTotals.entries()).map(([name, v]) => ({ name, cost: Math.round(v.cost), color: v.color })),
     budgetVsActual: allRows.filter((r) => r.budget != null).map((r) => ({ cat: r.name, budget: Math.round((r.budget ?? 0) / 1000), actual: Math.round(r.amount / 1000) })),
   });
+}
+
+export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isHrAdmin(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const body = await req.json().catch(() => ({}));
+  const category = body?.category;
+  if (!CATEGORIES.includes(category)) {
+    return NextResponse.json({ error: "Invalid category." }, { status: 400 });
+  }
+
+  const month = /^\d{4}-\d{2}$/.test(body?.month) ? body.month : currentMonth();
+  const amount = Math.round(Number(body?.amount));
+  const budgetAmount = Math.round(Number(body?.budgetAmount));
+  if (!Number.isFinite(amount) || amount < 0) {
+    return NextResponse.json({ error: "A valid amount is required." }, { status: 400 });
+  }
+  if (!Number.isFinite(budgetAmount) || budgetAmount < 0) {
+    return NextResponse.json({ error: "A valid budget is required." }, { status: 400 });
+  }
+
+  await prisma.operatingExpense.upsert({
+    where: { category_month: { category, month } },
+    create: { category, month, amount, budgetAmount },
+    update: { amount, budgetAmount },
+  });
+
+  await logAudit(user, `Set ${category} expenses for ${month} to $${amount.toLocaleString()}`, "Expenses");
+
+  return NextResponse.json({ ok: true });
 }

@@ -28,7 +28,7 @@ export const ALL_ROLES = Object.keys(ROLE_LABELS);
 
 export const ALL_PERMISSIONS = [
   "dashboard", "employees", "departments", "teams", "projects", "tasks", "attendance", "leave",
-  "payroll", "performance", "kpi", "okr", "analytics", "reports", "settings", "my-work",
+  "payroll", "kpi", "okr", "analytics", "reports", "settings", "my-work",
   "employee-profile", "knowledge", "calendar", "meetings", "roles", "audit", "profile", "eod",
 ];
 

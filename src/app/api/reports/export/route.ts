@@ -51,6 +51,13 @@ export async function GET(req: NextRequest) {
   } else if (type === "expenses") {
     const expenses = await prisma.operatingExpense.findMany({ orderBy: { month: "desc" } });
     rows = expenses.map((e) => ({ Category: e.category, Month: e.month, Amount: e.amount, Budget: e.budgetAmount }));
+  } else if (type === "okr") {
+    const objectives = await prisma.objective.findMany({ include: { owner: true, keyResults: true }, orderBy: { id: "asc" } });
+    rows = objectives.flatMap((o) =>
+      o.keyResults.length
+        ? o.keyResults.map((kr) => ({ Objective: o.title, Owner: o.owner?.name ?? "Unassigned", Quarter: `${o.quarter} ${o.year}`, KeyResult: kr.title, Progress: kr.progress, Status: kr.status }))
+        : [{ Objective: o.title, Owner: o.owner?.name ?? "Unassigned", Quarter: `${o.quarter} ${o.year}`, KeyResult: "", Progress: 0, Status: "" }]
+    );
   } else {
     return NextResponse.json({ error: "Unknown report type." }, { status: 400 });
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
 import {
   LayoutDashboard, Users, Building2, Network, FolderKanban, CheckSquare,
   Calendar, Clock, PlaneTakeoff, DollarSign, Award, Target, BarChart3,
@@ -11,7 +11,7 @@ import {
   CheckCircle2, XCircle, TrendingUp, TrendingDown, Send, Paperclip,
   Smile, Menu, X, Eye, Edit2, Trash2, Download, RefreshCw,
   GripVertical, Play, Phone, Mail, MapPin, Globe, Activity, SlidersHorizontal,
-  Mic, Code, Layers, Sun, Moon, ChevronLeft, Tag, Info, Copy, Lock, Upload, PartyPopper
+  Mic, Code, Layers, Sun, Moon, ChevronLeft, Tag, Info, Copy, Lock, Upload, PartyPopper, Wallet
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
@@ -91,7 +91,7 @@ const useAuth = () => useContext(AuthCtx);
 type ModalName =
   | "add-employee" | "add-department" | "department-detail" | "create-team" | "create-project"
   | "create-task" | "task-detail" | "create-event" | "schedule-meeting" | "apply-leave"
-  | "start-review-cycle" | "add-objective" | "add-article" | "eod-detail" | null;
+  | "add-objective" | "add-article" | "eod-detail" | null;
 
 const ModalCtx = createContext<{
   openModal: (n: ModalName, data?: any) => void;
@@ -106,7 +106,7 @@ const useModal = () => useContext(ModalCtx);
 type Page =
   | "dashboard" | "employees" | "departments" | "teams"
   | "projects" | "tasks" | "calendar" | "attendance" | "leave"
-  | "payroll" | "performance" | "kpi" | "okr" | "analytics"
+  | "payroll" | "kpi" | "okr" | "analytics"
   | "reports" | "knowledge" | "settings"
   | "notifications" | "meetings" | "roles" | "audit" | "billing" | "profile"
   | "employee-profile" | "my-work" | "eod" | "payroll-expenses";
@@ -247,7 +247,7 @@ const navGroups = [
   { label:"Overview", items:[{id:"dashboard",label:"Dashboard",icon:LayoutDashboard},{id:"my-work",label:"My Work",icon:User}] },
   { label:"Organization", items:[{id:"employees",label:"Employees",icon:Users},{id:"departments",label:"Departments",icon:Building2},{id:"teams",label:"Teams",icon:Network}] },
   { label:"Work", items:[{id:"projects",label:"Projects",icon:FolderKanban},{id:"tasks",label:"Tasks",icon:CheckSquare},{id:"calendar",label:"Calendar",icon:Calendar},{id:"meetings",label:"Meetings",icon:Video}] },
-  { label:"HR", items:[{id:"attendance",label:"Attendance",icon:Clock},{id:"leave",label:"Leave",icon:PlaneTakeoff},{id:"payroll",label:"Payroll",icon:DollarSign},{id:"payroll-expenses",label:"Expenses",icon:BarChart3},{id:"performance",label:"Performance",icon:Award}] },
+  { label:"HR", items:[{id:"attendance",label:"Attendance",icon:Clock},{id:"leave",label:"Leave",icon:PlaneTakeoff},{id:"payroll",label:"Payroll",icon:DollarSign},{id:"payroll-expenses",label:"Expenses",icon:BarChart3}] },
   { label:"Analytics", items:[{id:"kpi",label:"KPI",icon:Target},{id:"okr",label:"OKR",icon:Zap},{id:"analytics",label:"Analytics",icon:BarChart3},{id:"reports",label:"Reports",icon:FileBarChart}] },
   { label:"Workspace", items:[{id:"knowledge",label:"Knowledge Base",icon:BookOpen},{id:"notifications",label:"Notifications",icon:Bell},{id:"eod",label:"EOD Report",icon:FileText}] },
   { label:"Admin", items:[{id:"settings",label:"Settings",icon:Settings},{id:"roles",label:"Roles & Permissions",icon:ShieldCheck},{id:"audit",label:"Audit Logs",icon:Activity},{id:"billing",label:"Billing",icon:CreditCard}] },
@@ -325,6 +325,103 @@ function Sidebar({ activePage, onNavigate, collapsed, onToggle }: { activePage: 
 
 // ─── TOPBAR ───────────────────────────────────────────────────────────────────
 
+function GlobalSearch({ onNavigate }: { onNavigate:(p:Page)=>void }) {
+  const { c } = useTheme();
+  const { setSelectedEmployeeId } = useApp();
+  const { openModal } = useModal();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<{people:any[];projects:any[];tasks:any[]}>({ people: [], projects: [], tasks: [] });
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setResults({ people: [], projects: [], tasks: [] }); return; }
+    const id = setTimeout(() => {
+      fetch(`/api/search?q=${encodeURIComponent(q)}`).then(r => r.json()).then(setResults).catch(() => {});
+    }, 250);
+    return () => clearTimeout(id);
+  }, [query]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const goToPerson = (id: number) => { setSelectedEmployeeId(id); onNavigate("employee-profile"); setOpen(false); };
+  const goToProject = () => { onNavigate("projects"); setOpen(false); };
+  const goToTask = (id: number) => { onNavigate("tasks"); openModal("task-detail", { taskId: id }); setOpen(false); };
+
+  const q = query.trim();
+  const hasResults = results.people.length || results.projects.length || results.tasks.length;
+
+  return (
+    <div className="flex-1 max-w-sm mx-auto" ref={wrapRef}>
+      <div className="relative">
+        <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${c("text-slate-500","text-slate-400")}`}/>
+        <input ref={inputRef} value={query} onChange={e=>{ setQuery(e.target.value); setOpen(true); }} onFocus={()=>setOpen(true)}
+          className={`w-full border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none transition-colors ${c("bg-slate-800/60 border-white/[0.08] text-slate-300 placeholder-slate-600 focus:border-indigo-500/50","bg-slate-100 border-slate-200 text-slate-700 placeholder-slate-400 focus:border-indigo-400")}`}
+          placeholder="Search people, projects, tasks..."/>
+        {!query && <kbd className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded border ${c("text-slate-600 bg-slate-800 border-white/[0.06]","text-slate-400 bg-white border-slate-200")}`}>⌘K</kbd>}
+        {open && q.length >= 2 && (
+          <div className={`absolute top-full left-0 right-0 mt-2 rounded-xl border shadow-2xl max-h-96 overflow-y-auto z-50 ${c("bg-slate-800 border-white/[0.08]","bg-white border-slate-200")}`}>
+            {!hasResults && <p className={`text-xs p-4 ${c("text-slate-500","text-slate-400")}`}>No results for "{q}"</p>}
+            {results.people.length > 0 && (
+              <div className="p-2">
+                <p className={`text-[10px] uppercase tracking-wide px-2 py-1 ${c("text-slate-500","text-slate-400")}`}>People</p>
+                {results.people.map((p:any)=>(
+                  <button key={p.id} onClick={()=>goToPerson(p.id)} className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left ${c("hover:bg-slate-700/60","hover:bg-slate-50")}`}>
+                    <Avatar initials={p.avatar} color={p.avatarColor} size="sm"/>
+                    <div className="min-w-0"><p className={`text-sm truncate ${c("text-slate-200","text-slate-800")}`}>{p.name}</p><p className={`text-[11px] truncate ${c("text-slate-500","text-slate-400")}`}>{p.title}</p></div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {results.projects.length > 0 && (
+              <div className={`p-2 border-t ${c("border-white/[0.06]","border-slate-100")}`}>
+                <p className={`text-[10px] uppercase tracking-wide px-2 py-1 ${c("text-slate-500","text-slate-400")}`}>Projects</p>
+                {results.projects.map((p:any)=>(
+                  <button key={p.id} onClick={goToProject} className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-left ${c("hover:bg-slate-700/60","hover:bg-slate-50")}`}>
+                    <span className={`text-sm truncate ${c("text-slate-200","text-slate-800")}`}>{p.name}</span>
+                    <StatusBadge status={p.status}/>
+                  </button>
+                ))}
+              </div>
+            )}
+            {results.tasks.length > 0 && (
+              <div className={`p-2 border-t ${c("border-white/[0.06]","border-slate-100")}`}>
+                <p className={`text-[10px] uppercase tracking-wide px-2 py-1 ${c("text-slate-500","text-slate-400")}`}>Tasks</p>
+                {results.tasks.map((t:any)=>(
+                  <button key={t.id} onClick={()=>goToTask(t.id)} className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left ${c("hover:bg-slate-700/60","hover:bg-slate-50")}`}>
+                    <PriorityBadge priority={t.priority}/>
+                    <span className={`text-sm truncate ${c("text-slate-200","text-slate-800")}`}>{t.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TopBar({ activePage, onNavigate, onToggleTheme }: { activePage: Page; onNavigate:(p:Page)=>void; onToggleTheme:()=>void }) {
   const { c, light } = useTheme();
   const { authUser, logout } = useAuth();
@@ -337,14 +434,7 @@ function TopBar({ activePage, onNavigate, onToggleTheme }: { activePage: Page; o
         <ChevronRight size={14} className={c("text-slate-700","text-slate-300")}/>
         <span className={`font-medium ${c("text-slate-200","text-slate-800")}`}>{label}</span>
       </div>
-      <div className="flex-1 max-w-sm mx-auto">
-        <div className="relative">
-          <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${c("text-slate-500","text-slate-400")}`}/>
-          <input className={`w-full border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none transition-colors ${c("bg-slate-800/60 border-white/[0.08] text-slate-300 placeholder-slate-600 focus:border-indigo-500/50","bg-slate-100 border-slate-200 text-slate-700 placeholder-slate-400 focus:border-indigo-400")}`}
-            placeholder="Search people, projects, tasks..."/>
-          <kbd className={`absolute right-3 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 rounded border ${c("text-slate-600 bg-slate-800 border-white/[0.06]","text-slate-400 bg-white border-slate-200")}`}>⌘K</kbd>
-        </div>
-      </div>
+      <GlobalSearch onNavigate={onNavigate}/>
       <div className="flex items-center gap-2 ml-auto">
         <Btn variant="secondary" size="sm" icon={Plus}>New</Btn>
         {/* Theme Toggle */}
@@ -1315,87 +1405,24 @@ function PayrollPage() {
   );
 }
 
-// ─── PERFORMANCE ──────────────────────────────────────────────────────────────
-
-function PerformancePage() {
-  const { c } = useTheme();
-  const { openModal, activeModal } = useModal();
-  const [data, setData] = useState<any>(null);
-
-  useEffect(() => {
-    if (activeModal === "start-review-cycle") return;
-    fetch("/api/performance").then(r => r.json()).then(setData);
-  }, [activeModal]);
-
-  if (!data) return null;
-  const { completion, distribution, reviews, cycle } = data;
-
-  return (
-    <div>
-      <PageHeader title="Performance" subtitle="Reviews, ratings, and development plans" actions={<Btn size="sm" icon={Plus} onClick={()=>openModal("start-review-cycle")}>Start Review Cycle</Btn>}/>
-      {!cycle && <p className={`text-sm mb-4 ${c("text-slate-500","text-slate-400")}`}>No review cycle has been started yet.</p>}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <Card className="p-5 flex flex-col items-center">
-          <h3 className={`text-sm font-semibold mb-4 self-start ${c("text-white","text-slate-900")}`}>Review Completion</h3>
-          <div className="relative w-32 h-32">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart><Pie data={[{value:completion.pct},{value:100-completion.pct}]} cx="50%" cy="50%" innerRadius={38} outerRadius={52} startAngle={90} endAngle={-270} dataKey="value"><Cell key="perf-filled" fill="#4F46E5"/><Cell key="perf-empty" fill={c("#334155","#E2E8F0")}/></Pie></PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex items-center justify-center"><span className={`text-2xl font-bold ${c("text-white","text-slate-900")}`}>{completion.pct}%</span></div>
-          </div>
-          <p className={`text-xs mt-2 ${c("text-slate-500","text-slate-400")}`}>{completion.completed} of {completion.total} reviews completed</p>
-        </Card>
-        <Card className="p-5 lg:col-span-2">
-          <h3 className={`text-sm font-semibold mb-4 ${c("text-white","text-slate-900")}`}>Rating Distribution</h3>
-          <div className="space-y-3">
-            {distribution.map((r:any)=>(
-              <div key={r.label} className="flex items-center gap-3">
-                <span className={`text-[11px] w-52 flex-shrink-0 ${c("text-slate-400","text-slate-500")}`}>{r.label}</span>
-                <div className={`flex-1 h-2 ${c("bg-slate-700","bg-slate-200")} rounded-full overflow-hidden`}><div className={`h-full ${r.color} rounded-full`} style={{width:`${r.pct}%`}}/></div>
-                <span className={`text-xs w-8 text-right ${c("text-slate-400","text-slate-500")}`}>{r.pct}%</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-      <Card>
-        <div className={`p-4 border-b ${c("border-white/[0.06]","border-slate-200")}`}><h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Performance Reviews</h3></div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead><tr className={`border-b ${c("border-white/[0.06]","border-slate-200")}`}>{["Employee","Reviewer","Period","Score","Status"].map(h=><th key={h} className={`text-left text-xs font-semibold px-4 py-3 ${c("text-slate-500","text-slate-400")}`}>{h}</th>)}</tr></thead>
-            <tbody>
-              {reviews.map((r:any)=>(
-                  <tr key={r.id} className={`border-b ${c("border-white/[0.04]","border-slate-100")} ${c("hover:bg-slate-700/20","hover:bg-slate-50")}`}>
-                    <td className="px-4 py-3"><div className="flex items-center gap-2"><Avatar initials={r.avatar} color={r.avatarColor} size="sm"/><span className={`text-sm ${c("text-slate-200","text-slate-800")}`}>{r.name}</span></div></td>
-                    <td className={`px-4 py-3 text-sm ${c("text-slate-400","text-slate-500")}`}>{r.reviewer}</td>
-                    <td className={`px-4 py-3 text-sm ${c("text-slate-400","text-slate-500")}`}>{r.period}</td>
-                    <td className="px-4 py-3">{r.score!=null?<div className="flex items-center gap-1"><Star size={12} className={r.score>=4?"text-amber-500 fill-amber-500":c("text-slate-600","text-slate-300")}/><span className={`text-sm font-semibold ${r.score>=4.5?"text-emerald-500":r.score>=3.5?"text-amber-500":"text-red-500"}`}>{r.score.toFixed(1)}</span></div>:<span className={`text-xs ${c("text-slate-600","text-slate-400")}`}>—</span>}</td>
-                    <td className="px-4 py-3"><StatusBadge status={r.status}/></td>
-                  </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
 // ─── KPI ──────────────────────────────────────────────────────────────────────
 
 function KPIPage() {
   const { c } = useTheme();
   const [kpis, setKpis] = useState<any[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
 
-  useEffect(() => { fetch("/api/kpi").then(r => r.json()).then(d => setKpis(d.kpis ?? [])); }, []);
+  const load = () => fetch("/api/kpi").then(r => r.json()).then(d => setKpis(d.kpis ?? []));
+  useEffect(() => { load(); }, []);
 
   return (
     <div>
-      <PageHeader title="KPI Dashboard" subtitle="Key performance indicators across all departments"/>
+      <PageHeader title="KPI Dashboard" subtitle="Key performance indicators across all departments" actions={<Btn size="sm" icon={Plus} onClick={()=>setAdding(true)}>Add KPI</Btn>}/>
       {kpis.length===0 && <p className={`text-sm ${c("text-slate-500","text-slate-400")}`}>No KPIs have been defined yet.</p>}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {kpis.map(kpi=>(
-          <Card key={kpi.name} className="p-5">
+          <Card key={kpi.id} className="p-5 cursor-pointer transition-all hover:-translate-y-0.5" onClick={()=>setEditing(kpi)}>
             <div className="flex items-start justify-between mb-3"><div><h4 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>{kpi.name}</h4><p className={`text-xs mt-0.5 ${c("text-slate-500","text-slate-400")}`}>{kpi.dept}</p></div><div className={`flex items-center text-xs font-medium ${kpi.trend==="up"?"text-emerald-500":"text-red-500"}`}>{kpi.trend==="up"?<ArrowUp size={12}/>:<ArrowDown size={12}/>}</div></div>
             <div className="flex items-end gap-2 mb-3"><span className={`text-2xl font-bold ${c("text-white","text-slate-900")}`}>{kpi.current}{kpi.unit}</span><span className={`text-sm mb-0.5 ${c("text-slate-500","text-slate-400")}`}>/ {kpi.target}{kpi.unit}</span></div>
             <ProgressBar value={kpi.pct} color={kpi.pct>=85?"bg-emerald-500":kpi.pct>=70?"bg-amber-500":"bg-red-500"}/>
@@ -1403,7 +1430,101 @@ function KPIPage() {
           </Card>
         ))}
       </div>
+      {adding && <AddKPIModal onClose={()=>setAdding(false)} onSaved={()=>{ setAdding(false); load(); }}/>}
+      {editing && <EditKPIModal kpi={editing} onClose={()=>setEditing(null)} onSaved={()=>{ setEditing(null); load(); }}/>}
     </div>
+  );
+}
+
+function AddKPIModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const departments = useDepartmentDirectory();
+  const [f, setF] = useState({ name: "", dept: "", current: "", target: "", unit: "", trend: "up", period: "" });
+  const set = (k: string, v: string) => setF(p => ({ ...p, [k]: v }));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    if (!f.name.trim() || !f.current.trim() || !f.target.trim()) { setError("Name, current, and target are required."); return; }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/kpi", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+      const d = await res.json();
+      if (!res.ok) { setError(d.error || "Could not create KPI."); return; }
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalOverlay title="Add KPI" subtitle="Define a metric to track against a target" onClose={onClose}>
+      <div className="space-y-4">
+        <div><FieldLabel label="KPI Name" required/><FInput value={f.name} onChange={v=>set("name",v)} placeholder="e.g. Client Retention Rate"/></div>
+        <div><FieldLabel label="Department"/><FSelect value={f.dept} onChange={v=>set("dept",v)}><option value="">Company-wide</option>{departments.map((d:any)=><option key={d.id}>{d.name}</option>)}</FSelect></div>
+        <div className="grid grid-cols-3 gap-4">
+          <div><FieldLabel label="Current Value" required/><FInput value={f.current} onChange={v=>set("current",v)} placeholder="e.g. 82"/></div>
+          <div><FieldLabel label="Target Value" required/><FInput value={f.target} onChange={v=>set("target",v)} placeholder="e.g. 90"/></div>
+          <div><FieldLabel label="Unit"/><FInput value={f.unit} onChange={v=>set("unit",v)} placeholder="%, days, ₹..."/></div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div><FieldLabel label="Trend Direction"/><FSelect value={f.trend} onChange={v=>set("trend",v)}><option value="up">Higher is better</option><option value="down">Lower is better</option></FSelect></div>
+          <div><FieldLabel label="Period"/><FInput value={f.period} onChange={v=>set("period",v)} placeholder="e.g. Q3 2026"/></div>
+        </div>
+        {error && <p className="text-xs text-red-400">{error}</p>}
+        <div className="flex gap-2 pt-2"><Btn variant="primary" onClick={save} disabled={busy}>{busy?"Creating...":"Create KPI"}</Btn><Btn variant="secondary" onClick={onClose}>Cancel</Btn></div>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+function EditKPIModal({ kpi, onClose, onSaved }: { kpi: any; onClose: () => void; onSaved: () => void }) {
+  const [current, setCurrent] = useState(String(kpi.current));
+  const [target, setTarget] = useState(String(kpi.target));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/kpi/${kpi.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ current, target }) });
+      const d = await res.json();
+      if (!res.ok) { setError(d.error || "Could not save changes."); return; }
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!window.confirm(`Delete the "${kpi.name}" KPI? This cannot be undone.`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/kpi/${kpi.id}`, { method: "DELETE" });
+      const d = await res.json();
+      if (!res.ok) { setError(d.error || "Could not delete KPI."); return; }
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalOverlay title={kpi.name} subtitle={kpi.dept || "Company-wide"} onClose={onClose}>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div><FieldLabel label={`Current Value (${kpi.unit||"—"})`} required/><FInput value={current} onChange={setCurrent} placeholder="e.g. 85"/></div>
+          <div><FieldLabel label={`Target Value (${kpi.unit||"—"})`} required/><FInput value={target} onChange={setTarget} placeholder="e.g. 90"/></div>
+        </div>
+        {error && <p className="text-xs text-red-400">{error}</p>}
+        <div className="flex items-center justify-between gap-2 pt-2">
+          <Btn variant="primary" onClick={save} disabled={busy}>{busy?"Saving...":"Save"}</Btn>
+          <Btn variant="danger" size="sm" icon={Trash2} onClick={remove} disabled={busy}>Delete KPI</Btn>
+        </div>
+      </div>
+    </ModalOverlay>
   );
 }
 
@@ -1978,20 +2099,21 @@ function ReportsPage() {
   const { c } = useTheme();
   const reports=[
     {name:"Headcount Report",desc:"Employee names, departments, titles, status, and join dates",type:"HR",key:"headcount",icon:Users,color:"bg-indigo-500/15 text-indigo-500"},
-    {name:"Payroll Summary",desc:"Payroll records by employee: basic, allowances, deductions, net pay",type:"Finance",key:"payroll",icon:DollarSign,color:"bg-emerald-500/15 text-emerald-500"},
+    {name:"Payroll Summary",desc:"Granted payroll amounts by employee and month",type:"Finance",key:"payroll",icon:DollarSign,color:"bg-emerald-500/15 text-emerald-500"},
+    {name:"Expenses Report",desc:"Monthly operating expenses by category, vs budget",type:"Finance",key:"expenses",icon:Wallet,color:"bg-rose-500/15 text-rose-500"},
     {name:"Project Delivery Report",desc:"Project status, budget vs spend, and task completion",type:"Projects",key:"projects",icon:FolderKanban,color:"bg-violet-500/15 text-violet-500"},
     {name:"Attendance Report",desc:"30-day attendance rate per employee",type:"HR",key:"attendance",icon:Clock,color:"bg-amber-500/15 text-amber-500"},
-    {name:"Performance Review Summary",desc:"Review scores and status by employee and cycle",type:"HR",key:"performance",icon:Award,color:"bg-rose-500/15 text-rose-500"},
     {name:"Department KPI Report",desc:"KPI achievement vs targets across all departments",type:"Analytics",key:"kpi",icon:Target,color:"bg-cyan-500/15 text-cyan-500"},
+    {name:"OKR Summary",desc:"Objectives, key results, owners, and progress by quarter",type:"Analytics",key:"okr",icon:Zap,color:"bg-indigo-500/15 text-indigo-500"},
   ];
   const download = (key: string) => { window.location.href = `/api/reports/export?type=${key}`; };
   return (
     <div>
       <PageHeader title="Reports" subtitle="Generate and download organization reports"/>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{reports.map(r=>(
-        <Card key={r.name} className="p-5 cursor-pointer transition-all hover:-translate-y-0.5">
+        <Card key={r.name} className="p-5 cursor-pointer transition-all hover:-translate-y-0.5" onClick={()=>download(r.key)}>
           <div className="flex items-start gap-3 mb-4"><div className={`w-10 h-10 rounded-xl ${r.color} flex items-center justify-center flex-shrink-0`}><r.icon size={18}/></div><div><h4 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>{r.name}</h4><p className={`text-xs mt-0.5 leading-relaxed ${c("text-slate-500","text-slate-400")}`}>{r.desc}</p></div></div>
-          <div className="flex items-center justify-between"><Badge variant="default">{r.type}</Badge><button onClick={()=>download(r.key)} className="text-xs text-indigo-500 flex items-center gap-1"><Download size={11}/>Download CSV</button></div>
+          <div className="flex items-center justify-between"><Badge variant="default">{r.type}</Badge><span className="text-xs text-indigo-500 flex items-center gap-1"><Download size={11}/>Download CSV</span></div>
         </Card>
       ))}</div>
     </div>
@@ -3743,102 +3865,6 @@ function ApplyLeaveModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function StartReviewCycleModal({ onClose }: { onClose: () => void }) {
-  const { c } = useTheme();
-  const [done, setDone] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const departments = useDepartmentDirectory();
-  const [submitError, setSubmitError] = useState("");
-  const [f, setF] = useState({ name: "Q3 2026 Performance Review", quarter: "Q3", year: "2026", reviewType: "360", ratingScale: "1-5", anonymousPeer: true, autoRemind: true, remindDays: "3", template: "Engineering Standard", kickoff: "", selfDeadline: "", managerDeadline: "", resultsDate: "" });
-  const [depts, setDepts] = useState<string[]>(["Engineering","Product","Design"]);
-  const set = (k: string, v: any) => setF(p => ({ ...p, [k]: v }));
-  const allDepts = departments.map(d => d.name);
-  const toggleDept = (d: string) => setDepts(p => p.includes(d) ? p.filter(x=>x!==d) : [...p,d]);
-
-  const handleLaunch = async () => {
-    if (!(f.name && f.selfDeadline && depts.length > 0)) return;
-    setSubmitting(true);
-    setSubmitError("");
-    try {
-      const res = await fetch("/api/performance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...f, departments: depts }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setSubmitError(data.error || "Could not start review cycle."); return; }
-      setDone(true);
-    } catch {
-      setSubmitError("Could not reach the server. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (done) return (
-    <ModalOverlay title="Review Cycle Started" onClose={onClose} size="lg">
-      <SuccessBanner message={`"${f.name}" has been launched for ${depts.length} departments. Employees will receive notifications shortly.`}/>
-      <div className={`rounded-xl p-4 space-y-2 text-sm ${c("bg-slate-800/50","bg-slate-50")} border ${c("border-white/[0.06]","border-slate-200")}`}>
-        {[["Cycle",f.name],["Period",`${f.quarter} ${f.year}`],["Type",f.reviewType],["Departments",depts.join(", ")],["Scale",f.ratingScale],["Self-Assessment Due",f.selfDeadline],["Manager Review Due",f.managerDeadline]].map(([l,v]) => v ? <div key={l} className="flex justify-between"><span className={c("text-slate-500","text-slate-400")}>{l}</span><span className={c("text-slate-200","text-slate-700")}>{v}</span></div> : null)}
-      </div>
-      <Btn variant="primary" onClick={onClose} className="mt-4">View Review Dashboard</Btn>
-    </ModalOverlay>
-  );
-
-  return (
-    <ModalOverlay title="Start Review Cycle" subtitle="Configure and launch a performance review" onClose={onClose} size="xl">
-      <div className="space-y-5">
-        <div className="grid grid-cols-3 gap-4">
-          <div className="col-span-2"><FieldLabel label="Cycle Name" required/><FInput value={f.name} onChange={v => set("name",v)} placeholder="e.g. Q3 2026 Performance Review"/></div>
-          <div className="grid grid-cols-2 gap-2"><div><FieldLabel label="Quarter"/><FSelect value={f.quarter} onChange={v => set("quarter",v)}><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></FSelect></div><div><FieldLabel label="Year"/><FSelect value={f.year} onChange={v => set("year",v)}><option>2026</option><option>2027</option></FSelect></div></div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <FieldLabel label="Review Type" required/>
-            <div className="grid grid-cols-2 gap-2 mt-1">{[["360","360° Feedback"],["manager","Manager Only"],["self","Self-Assessment"],["peer","Peer Review"],["all","All Methods"]].map(([v,l]) => <button key={v} onClick={() => set("reviewType",v)} className={`py-2 px-3 rounded-lg text-xs font-medium border transition-colors ${f.reviewType === v ? "bg-indigo-600 text-white border-indigo-500" : c("border-white/[0.08] text-slate-400 hover:border-white/20","border-slate-200 text-slate-500 hover:border-slate-300")}`}>{l}</button>)}</div>
-          </div>
-          <div>
-            <FieldLabel label="Rating Scale"/>
-            <div className="grid grid-cols-3 gap-2 mt-1">{["1-5","1-10","A-F"].map(v => <button key={v} onClick={() => set("ratingScale",v)} className={`py-2 rounded-lg text-xs font-medium border transition-colors ${f.ratingScale === v ? "bg-indigo-600 text-white border-indigo-500" : c("border-white/[0.08] text-slate-400 hover:border-white/20","border-slate-200 text-slate-500 hover:border-slate-300")}`}>{v}</button>)}</div>
-          </div>
-        </div>
-        <div>
-          <FieldLabel label="Review Template"/>
-          <FSelect value={f.template} onChange={v => set("template",v)}>{["Engineering Standard","Leadership Assessment","Sales Performance","Design & Creative","HR & Operations","Custom Template"].map(t => <option key={t}>{t}</option>)}</FSelect>
-        </div>
-        <div>
-          <FieldLabel label={`Departments to Include (${depts.length} selected)`}/>
-          <div className="flex flex-wrap gap-2 mt-1">
-            <button onClick={() => setDepts(depts.length === allDepts.length ? [] : [...allDepts])} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${depts.length === allDepts.length ? "bg-indigo-600 text-white border-indigo-500" : c("border-white/[0.08] text-slate-400","border-slate-200 text-slate-500")}`}>Select All</button>
-            {allDepts.map(d => <button key={d} onClick={() => toggleDept(d)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${depts.includes(d) ? "bg-indigo-600/20 text-indigo-400 border-indigo-500/30" : c("border-white/[0.08] text-slate-400 hover:border-white/20","border-slate-200 text-slate-500 hover:border-slate-300")}`}>{d}</button>)}
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div><FieldLabel label="Kick-off Date" required/><FInput value={f.kickoff} onChange={v => set("kickoff",v)} type="date"/></div>
-          <div><FieldLabel label="Self-Assessment Deadline" required/><FInput value={f.selfDeadline} onChange={v => set("selfDeadline",v)} type="date"/></div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div><FieldLabel label="Manager Review Deadline" required/><FInput value={f.managerDeadline} onChange={v => set("managerDeadline",v)} type="date"/></div>
-          <div><FieldLabel label="Results Release Date"/><FInput value={f.resultsDate} onChange={v => set("resultsDate",v)} type="date"/></div>
-        </div>
-        <div className="flex gap-8">
-          {[["anonymousPeer","Anonymous peer reviews"],["autoRemind","Auto-remind employees"]].map(([k,l]) => (
-            <label key={k} className="flex items-center gap-2 cursor-pointer">
-              <div onClick={() => set(k, !(f as any)[k])} className={`w-9 h-5 rounded-full relative transition-colors ${(f as any)[k] ? "bg-indigo-600" : c("bg-slate-700","bg-slate-300")}`}><div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all ${(f as any)[k] ? "left-4" : "left-0.5"}`}/></div>
-              <span className={`text-sm ${c("text-slate-300","text-slate-700")}`}>{l}</span>
-            </label>
-          ))}
-        </div>
-        {submitError && <p className="text-xs text-red-400">{submitError}</p>}
-        <div className="flex gap-2 pt-2">
-          <Btn variant="primary" icon={Play} onClick={handleLaunch}>{submitting ? "Launching..." : "Launch Review Cycle"}</Btn>
-          <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        </div>
-      </div>
-    </ModalOverlay>
-  );
-}
-
 function AddObjectiveModal({ onClose }: { onClose: () => void }) {
   const { c } = useTheme();
   const [done, setDone] = useState(false);
@@ -3966,7 +3992,6 @@ function ModalSystem() {
       {activeModal === "create-event" && <CreateEventModal onClose={closeModal}/>}
       {activeModal === "schedule-meeting" && <ScheduleMeetingModal onClose={closeModal}/>}
       {activeModal === "apply-leave" && <ApplyLeaveModal onClose={closeModal}/>}
-      {activeModal === "start-review-cycle" && <StartReviewCycleModal onClose={closeModal}/>}
       {activeModal === "add-objective" && <AddObjectiveModal onClose={closeModal}/>}
       {activeModal === "add-article" && <AddArticleModal onClose={closeModal}/>}
       {activeModal === "eod-detail" && <EODDetailModal onClose={closeModal}/>}
@@ -4256,10 +4281,10 @@ function MonthlyExpensesPage() {
   const col = light ? LIGHT : DARK;
   const [data, setData] = useState<any>(null);
   const [month, setMonth] = useState<string | null>(null);
+  const [editing, setEditing] = useState<any>(null);
 
-  useEffect(() => {
-    fetch(`/api/expenses${month ? `?month=${month}` : ""}`).then(r => r.json()).then(d => { setData(d); setMonth(d.selectedMonth); });
-  }, [month]);
+  const load = () => fetch(`/api/expenses${month ? `?month=${month}` : ""}`).then(r => r.json()).then(d => { setData(d); setMonth(d.selectedMonth); });
+  useEffect(() => { load(); }, [month]);
 
   if (!data) return null;
   const idx = data.months.findIndex((m:any) => m.value === data.selectedMonth);
@@ -4323,7 +4348,7 @@ function MonthlyExpensesPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr className={`border-b ${c("border-white/[0.06]","border-slate-200")}`}>
-                {["Category","Amount","% of Total","vs Last Month","Trend"].map(h => <th key={h} className={`text-left text-xs font-semibold px-4 py-3 ${c("text-slate-500","text-slate-400")}`}>{h}</th>)}
+                {["Category","Amount","% of Total","vs Last Month","Trend",""].map(h => <th key={h} className={`text-left text-xs font-semibold px-4 py-3 ${c("text-slate-500","text-slate-400")}`}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {data.breakdown.map((cat:any, i:number) => (
@@ -4350,6 +4375,11 @@ function MonthlyExpensesPage() {
                       {cat.trend === "up" && <span className="flex items-center gap-1 text-xs text-red-400"><ArrowUp size={11}/>Rising</span>}
                       {cat.trend === "down" && <span className="flex items-center gap-1 text-xs text-emerald-500"><ArrowDown size={11}/>Reduced</span>}
                       {cat.trend === "flat" && <span className={`text-xs ${c("text-slate-500","text-slate-400")}`}>→ Stable</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {cat.name !== "Payroll" && (
+                        <button onClick={()=>setEditing(cat)} className={`w-7 h-7 rounded flex items-center justify-center ${c("text-slate-500 hover:text-indigo-400 hover:bg-slate-700/60","text-slate-400 hover:text-indigo-500 hover:bg-slate-100")}`}><Edit2 size={13}/></button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -4399,7 +4429,56 @@ function MonthlyExpensesPage() {
           </Card>
         </div>
       </div>
+      {editing && (
+        <EditExpenseModal
+          category={editing.name}
+          month={data.selectedMonth}
+          initialAmount={String(editing.amount ?? "")}
+          initialBudget={editing.budget != null ? String(editing.budget) : ""}
+          onClose={()=>setEditing(null)}
+          onSaved={()=>{ setEditing(null); load(); }}
+        />
+      )}
     </div>
+  );
+}
+
+function EditExpenseModal({ category, month, initialAmount, initialBudget, onClose, onSaved }: { category: string; month: string; initialAmount: string; initialBudget: string; onClose: () => void; onSaved: () => void }) {
+  const [amount, setAmount] = useState(initialAmount);
+  const [budget, setBudget] = useState(initialBudget);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    if (!amount.trim() || !budget.trim()) { setError("Both amount and budget are required."); return; }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, month, amount, budgetAmount: budget }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setError(d.error || "Could not save."); return; }
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalOverlay title={`Edit ${category}`} subtitle={month} onClose={onClose}>
+      <div className="space-y-4">
+        <div><FieldLabel label="Amount Spent (USD)" required/><FInput value={amount} onChange={setAmount} placeholder="e.g. 45000"/></div>
+        <div><FieldLabel label="Budget (USD)" required/><FInput value={budget} onChange={setBudget} placeholder="e.g. 50000"/></div>
+        {error && <p className="text-xs text-red-400">{error}</p>}
+        <div className="flex gap-2 pt-2">
+          <Btn variant="primary" onClick={save} disabled={busy}>{busy?"Saving...":"Save"}</Btn>
+          <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
+        </div>
+      </div>
+    </ModalOverlay>
   );
 }
 
@@ -4410,7 +4489,7 @@ function PageContent({ page }: { page: Page }) {
     <div className="p-6 overflow-y-auto h-full">
       {page==="dashboard"&&<DashboardPage/>}{page==="employees"&&<EmployeesPage/>}{page==="departments"&&<DepartmentsPage/>}{page==="teams"&&<TeamsPage/>}
       {page==="projects"&&<ProjectsPage/>}{page==="tasks"&&<TasksPage/>}{page==="calendar"&&<CalendarPage/>}{page==="meetings"&&<MeetingsPage/>}
-      {page==="attendance"&&<AttendancePage/>}{page==="leave"&&<LeavePage/>}{page==="payroll"&&<PayrollPage/>}{page==="performance"&&<PerformancePage/>}
+      {page==="attendance"&&<AttendancePage/>}{page==="leave"&&<LeavePage/>}{page==="payroll"&&<PayrollPage/>}
       {page==="kpi"&&<KPIPage/>}{page==="okr"&&<OKRPage/>}{page==="analytics"&&<AnalyticsPage/>}{page==="reports"&&<ReportsPage/>}
       {page==="knowledge"&&<KnowledgePage/>}
       {page==="settings"&&<SettingsPage/>}{page==="notifications"&&<NotificationsPage/>}{page==="roles"&&<RolesPage/>}
