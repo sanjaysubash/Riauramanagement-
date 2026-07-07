@@ -112,19 +112,6 @@ type Page =
   | "employee-profile" | "my-work" | "eod" | "payroll-expenses" | "expense-claims";
 
 
-const RESOURCE_ICONS: Record<string, React.ElementType> = {
-  Tasks: CheckSquare, Leave: PlaneTakeoff, Meetings: Video, Employees: Users, Departments: Building2,
-  Projects: FolderKanban, Payroll: DollarSign, Settings: Settings, Roles: ShieldCheck, Profile: User,
-  OKR: Target, "Knowledge Base": BookOpen, Billing: CreditCard, Performance: Award, Calendar: Calendar,
-};
-const RESOURCE_COLORS: Record<string, string> = {
-  Tasks: "text-indigo-500 bg-indigo-500/10", Leave: "text-emerald-500 bg-emerald-500/10", Meetings: "text-cyan-500 bg-cyan-500/10",
-  Employees: "text-violet-500 bg-violet-500/10", Departments: "text-violet-500 bg-violet-500/10", Projects: "text-amber-500 bg-amber-500/10",
-  Payroll: "text-emerald-500 bg-emerald-500/10", Settings: "text-slate-400 bg-slate-500/10", Roles: "text-red-500 bg-red-500/10",
-  Profile: "text-slate-400 bg-slate-500/10", OKR: "text-indigo-500 bg-indigo-500/10", "Knowledge Base": "text-amber-500 bg-amber-500/10",
-  Billing: "text-violet-500 bg-violet-500/10", Performance: "text-rose-500 bg-rose-500/10", Calendar: "text-rose-500 bg-rose-500/10",
-};
-
 // ─── SHARED COMPONENTS ────────────────────────────────────────────────────────
 
 function Badge({ children, variant = "default", className = "" }: { children: React.ReactNode; variant?: "default"|"success"|"warning"|"danger"|"info"|"purple"; className?: string }) {
@@ -545,56 +532,29 @@ function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Task Status by Department</h3>
-              <p className={`text-xs mt-0.5 ${c("text-slate-500","text-slate-400")}`}>Real-time breakdown of all tasks</p>
-            </div>
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Task Status by Department</h3>
+            <p className={`text-xs mt-0.5 ${c("text-slate-500","text-slate-400")}`}>Real-time breakdown of all tasks</p>
           </div>
-          {!stats?.taskStatusByDept?.length ? <p className={`text-xs ${c("text-slate-500","text-slate-400")}`}>No tasks assigned to any department yet.</p> : (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={stats.taskStatusByDept} barGap={2}>
-                <CartesianGrid strokeDasharray="3 3" stroke={col.chartGrid}/>
-                <XAxis dataKey="dept" tick={{ fill:col.tickColor, fontSize:11 }} axisLine={false} tickLine={false}/>
-                <YAxis tick={{ fill:col.tickColor, fontSize:11 }} axisLine={false} tickLine={false} allowDecimals={false}/>
-                <Tooltip content={(p:any)=><ChartTip {...p} light={light}/>}/>
-                <Legend wrapperStyle={{ fontSize:11, color:col.tickColor }}/>
-                <Bar key="dash-todo" dataKey="todo" name="To Do" fill="#64748B" radius={[4,4,0,0]}/>
-                <Bar key="dash-inprogress" dataKey="in-progress" name="In Progress" fill="#4F46E5" radius={[4,4,0,0]}/>
-                <Bar key="dash-review" dataKey="review" name="In Review" fill="#F59E0B" radius={[4,4,0,0]}/>
-                <Bar key="dash-done" dataKey="done" name="Done" fill="#22C55E" radius={[4,4,0,0]}/>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Card>
-        {authUser?.role === "super-admin" && (
-          <Card className="p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-6 h-6 rounded-lg bg-indigo-600/20 flex items-center justify-center"><Activity size={13} className="text-indigo-500"/></div>
-              <h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Recent Activity</h3>
-            </div>
-            {!stats?.recentActivity?.length ? <p className={`text-xs ${c("text-slate-500","text-slate-400")}`}>No activity yet.</p> : (
-              <div className="space-y-3">
-                {stats.recentActivity.map((a:any,i:number)=>{
-                  const Icon = RESOURCE_ICONS[a.resource] ?? Activity;
-                  const color = RESOURCE_COLORS[a.resource] ?? "text-indigo-500 bg-indigo-500/10";
-                  return (
-                    <div key={i} className={`flex items-start gap-2.5 p-2.5 rounded-lg ${c("bg-slate-700/20","bg-slate-50")}`}>
-                      <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${color}`}><Icon size={12}/></div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-[11px] leading-relaxed ${c("text-slate-400","text-slate-500")}`}><strong className={c("text-slate-300","text-slate-600")}>{a.actor}</strong> {a.action}</p>
-                        <p className={`text-[10px] mt-0.5 ${c("text-slate-600","text-slate-400")}`}>{a.time}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
+        </div>
+        {!stats?.taskStatusByDept?.length ? <p className={`text-xs ${c("text-slate-500","text-slate-400")}`}>No tasks assigned to any department yet.</p> : (
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={stats.taskStatusByDept} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke={col.chartGrid}/>
+              <XAxis dataKey="dept" tick={{ fill:col.tickColor, fontSize:11 }} axisLine={false} tickLine={false}/>
+              <YAxis tick={{ fill:col.tickColor, fontSize:11 }} axisLine={false} tickLine={false} allowDecimals={false}/>
+              <Tooltip content={(p:any)=><ChartTip {...p} light={light}/>}/>
+              <Legend wrapperStyle={{ fontSize:11, color:col.tickColor }}/>
+              <Bar key="dash-todo" dataKey="todo" name="To Do" fill="#64748B" radius={[4,4,0,0]}/>
+              <Bar key="dash-inprogress" dataKey="in-progress" name="In Progress" fill="#4F46E5" radius={[4,4,0,0]}/>
+              <Bar key="dash-review" dataKey="review" name="In Review" fill="#F59E0B" radius={[4,4,0,0]}/>
+              <Bar key="dash-done" dataKey="done" name="Done" fill="#22C55E" radius={[4,4,0,0]}/>
+            </BarChart>
+          </ResponsiveContainer>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

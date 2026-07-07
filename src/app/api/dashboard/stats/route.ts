@@ -12,7 +12,7 @@ export async function GET() {
 
   const today = startOfDay(new Date());
 
-  const [totalEmployees, presentToday, activeProjects, overdueTasks, totalTasks, doneTasks, tasksWithDept, recentActivity] = await Promise.all([
+  const [totalEmployees, presentToday, activeProjects, overdueTasks, totalTasks, doneTasks, tasksWithDept] = await Promise.all([
     prisma.employee.count({ where: { status: { not: "inactive" } } }),
     prisma.attendance.count({ where: { date: today, status: { not: "absent" } } }),
     prisma.project.count({ where: { status: { in: ["planning", "in-progress", "review"] } } }),
@@ -20,7 +20,6 @@ export async function GET() {
     prisma.task.count(),
     prisma.task.count({ where: { status: "done" } }),
     prisma.task.findMany({ select: { status: true, assignee: { select: { department: { select: { name: true } } } } } }),
-    prisma.auditLogEntry.findMany({ where: { resource: { not: "Payroll" } }, orderBy: { createdAt: "desc" }, take: 6 }),
   ]);
 
   const STATUS_KEYS = ["todo", "in-progress", "review", "done"] as const;
@@ -48,11 +47,5 @@ export async function GET() {
     taskStatusByDept,
     taskStatusBreakdown,
     totalTasks,
-    recentActivity: recentActivity.map((l) => ({
-      actor: l.actorName,
-      action: l.action,
-      resource: l.resource,
-      time: l.createdAt.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
-    })),
   });
 }
