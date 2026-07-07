@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "../styles/index.css";
 
 export const metadata: Metadata = {
-  title: "User dashboard",
+  title: "Riaura Management",
   description:
     "Connect and engage with others through a simple, user-friendly chat platform designed for seamless communication and social interaction.",
   robots: "noindex, nofollow",
