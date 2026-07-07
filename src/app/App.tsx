@@ -569,29 +569,31 @@ function DashboardPage() {
             </ResponsiveContainer>
           )}
         </Card>
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-6 h-6 rounded-lg bg-indigo-600/20 flex items-center justify-center"><Activity size={13} className="text-indigo-500"/></div>
-            <h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Recent Activity</h3>
-          </div>
-          {!stats?.recentActivity?.length ? <p className={`text-xs ${c("text-slate-500","text-slate-400")}`}>No activity yet.</p> : (
-            <div className="space-y-3">
-              {stats.recentActivity.map((a:any,i:number)=>{
-                const Icon = RESOURCE_ICONS[a.resource] ?? Activity;
-                const color = RESOURCE_COLORS[a.resource] ?? "text-indigo-500 bg-indigo-500/10";
-                return (
-                  <div key={i} className={`flex items-start gap-2.5 p-2.5 rounded-lg ${c("bg-slate-700/20","bg-slate-50")}`}>
-                    <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${color}`}><Icon size={12}/></div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-[11px] leading-relaxed ${c("text-slate-400","text-slate-500")}`}><strong className={c("text-slate-300","text-slate-600")}>{a.actor}</strong> {a.action}</p>
-                      <p className={`text-[10px] mt-0.5 ${c("text-slate-600","text-slate-400")}`}>{a.time}</p>
-                    </div>
-                  </div>
-                );
-              })}
+        {authUser?.role === "super-admin" && (
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-6 h-6 rounded-lg bg-indigo-600/20 flex items-center justify-center"><Activity size={13} className="text-indigo-500"/></div>
+              <h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Recent Activity</h3>
             </div>
-          )}
-        </Card>
+            {!stats?.recentActivity?.length ? <p className={`text-xs ${c("text-slate-500","text-slate-400")}`}>No activity yet.</p> : (
+              <div className="space-y-3">
+                {stats.recentActivity.map((a:any,i:number)=>{
+                  const Icon = RESOURCE_ICONS[a.resource] ?? Activity;
+                  const color = RESOURCE_COLORS[a.resource] ?? "text-indigo-500 bg-indigo-500/10";
+                  return (
+                    <div key={i} className={`flex items-start gap-2.5 p-2.5 rounded-lg ${c("bg-slate-700/20","bg-slate-50")}`}>
+                      <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${color}`}><Icon size={12}/></div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-[11px] leading-relaxed ${c("text-slate-400","text-slate-500")}`}><strong className={c("text-slate-300","text-slate-600")}>{a.actor}</strong> {a.action}</p>
+                        <p className={`text-[10px] mt-0.5 ${c("text-slate-600","text-slate-400")}`}>{a.time}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        )}
       </div>
     </div>
   );
