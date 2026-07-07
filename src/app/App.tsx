@@ -11,7 +11,7 @@ import {
   CheckCircle2, XCircle, TrendingUp, TrendingDown, Send, Paperclip,
   Smile, Menu, X, Eye, Edit2, Trash2, Download, RefreshCw,
   GripVertical, Play, Phone, Mail, MapPin, Globe, Activity, SlidersHorizontal,
-  Mic, Code, Layers, Sun, Moon, ChevronLeft, Tag, Info, Copy, Lock, Upload, PartyPopper, Wallet
+  Mic, Code, Layers, Sun, Moon, ChevronLeft, Tag, Info, Copy, Lock, Upload, PartyPopper, Wallet, Receipt
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
@@ -91,7 +91,7 @@ const useAuth = () => useContext(AuthCtx);
 type ModalName =
   | "add-employee" | "add-department" | "department-detail" | "create-team" | "create-project"
   | "create-task" | "task-detail" | "create-event" | "schedule-meeting" | "apply-leave"
-  | "add-objective" | "add-article" | "eod-detail" | null;
+  | "add-objective" | "add-article" | "eod-detail" | "add-expense-claim" | null;
 
 const ModalCtx = createContext<{
   openModal: (n: ModalName, data?: any) => void;
@@ -109,7 +109,7 @@ type Page =
   | "payroll" | "kpi" | "okr" | "analytics"
   | "reports" | "knowledge" | "settings"
   | "notifications" | "meetings" | "roles" | "audit" | "billing" | "profile"
-  | "employee-profile" | "my-work" | "eod" | "payroll-expenses";
+  | "employee-profile" | "my-work" | "eod" | "payroll-expenses" | "expense-claims";
 
 
 const RESOURCE_ICONS: Record<string, React.ElementType> = {
@@ -247,7 +247,7 @@ const navGroups = [
   { label:"Overview", items:[{id:"dashboard",label:"Dashboard",icon:LayoutDashboard},{id:"my-work",label:"My Work",icon:User}] },
   { label:"Organization", items:[{id:"employees",label:"Employees",icon:Users},{id:"departments",label:"Departments",icon:Building2},{id:"teams",label:"Teams",icon:Network}] },
   { label:"Work", items:[{id:"projects",label:"Projects",icon:FolderKanban},{id:"tasks",label:"Tasks",icon:CheckSquare},{id:"calendar",label:"Calendar",icon:Calendar},{id:"meetings",label:"Meetings",icon:Video}] },
-  { label:"HR", items:[{id:"attendance",label:"Attendance",icon:Clock},{id:"leave",label:"Leave",icon:PlaneTakeoff},{id:"payroll",label:"Payroll",icon:DollarSign},{id:"payroll-expenses",label:"Expenses",icon:BarChart3}] },
+  { label:"HR", items:[{id:"attendance",label:"Attendance",icon:Clock},{id:"leave",label:"Leave",icon:PlaneTakeoff},{id:"payroll",label:"Payroll",icon:DollarSign},{id:"payroll-expenses",label:"Expenses",icon:BarChart3},{id:"expense-claims",label:"Expense Claims",icon:Receipt}] },
   { label:"Analytics", items:[{id:"kpi",label:"KPI",icon:Target},{id:"okr",label:"OKR",icon:Zap},{id:"analytics",label:"Analytics",icon:BarChart3},{id:"reports",label:"Reports",icon:FileBarChart}] },
   { label:"Workspace", items:[{id:"knowledge",label:"Knowledge Base",icon:BookOpen},{id:"notifications",label:"Notifications",icon:Bell},{id:"eod",label:"EOD Report",icon:FileText}] },
   { label:"Admin", items:[{id:"settings",label:"Settings",icon:Settings},{id:"roles",label:"Roles & Permissions",icon:ShieldCheck},{id:"audit",label:"Audit Logs",icon:Activity},{id:"billing",label:"Billing",icon:CreditCard}] },
@@ -1333,6 +1333,155 @@ function LeavePage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+// ─── EXPENSE CLAIMS ───────────────────────────────────────────────────────────
+
+function ExpenseClaimsPage() {
+  const { c } = useTheme();
+  const { authUser } = useAuth();
+  const { openModal, activeModal } = useModal();
+  const [history, setHistory] = useState<any[]>([]);
+  const [pending, setPending] = useState<any[]>([]);
+  const [reviewingId, setReviewingId] = useState<number | null>(null);
+  const canApprove = authUser?.role === "super-admin" || authUser?.role === "hr-admin";
+
+  const loadPending = () => {
+    if (!canApprove) return;
+    fetch("/api/expense-claims?scope=pending").then(r => r.json()).then(d => setPending(d.pending ?? []));
+  };
+
+  useEffect(() => {
+    if (activeModal === "add-expense-claim") return;
+    fetch("/api/expense-claims").then(r => r.json()).then(d => setHistory(d.history ?? []));
+    loadPending();
+  }, [activeModal]);
+
+  const review = async (id: number, status: "approved" | "rejected") => {
+    setReviewingId(id);
+    try {
+      await fetch(`/api/expense-claims/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      loadPending();
+    } finally {
+      setReviewingId(null);
+    }
+  };
+
+  return (
+    <div>
+      <PageHeader title="Expense Claims" subtitle="Submit reimbursement requests and track approvals" actions={<Btn size="sm" icon={Plus} onClick={()=>openModal("add-expense-claim")}>Add Expense</Btn>}/>
+      {canApprove && (
+        <Card className="mb-6">
+          <div className={`p-4 border-b ${c("border-white/[0.06]","border-slate-200")}`}><h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Pending Approvals</h3></div>
+          {pending.length===0 && <p className={`p-4 text-sm ${c("text-slate-500","text-slate-400")}`}>No expense claims waiting on approval.</p>}
+          {pending.length>0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead><tr className={`border-b ${c("border-white/[0.06]","border-slate-200")}`}>{["Employee","Date","Category","Amount","Description",""].map(h=><th key={h} className={`text-left text-xs font-semibold px-4 py-3 ${c("text-slate-500","text-slate-400")}`}>{h}</th>)}</tr></thead>
+                <tbody>{pending.map(r=>(
+                  <tr key={r.id} className={`border-b ${c("border-white/[0.04]","border-slate-100")} ${c("hover:bg-slate-700/20","hover:bg-slate-50")}`}>
+                    <td className="px-4 py-3"><div className="flex items-center gap-2"><Avatar initials={r.avatar} color={r.avatarColor} size="sm"/><span className={`text-sm ${c("text-slate-200","text-slate-800")}`}>{r.employee}</span></div></td>
+                    <td className={`px-4 py-3 text-sm ${c("text-slate-300","text-slate-700")}`}>{r.date}</td>
+                    <td className={`px-4 py-3 text-sm ${c("text-slate-400","text-slate-500")}`}>{r.category}</td>
+                    <td className={`px-4 py-3 text-sm font-medium ${c("text-slate-300","text-slate-700")}`}>${r.amount.toLocaleString()}</td>
+                    <td className={`px-4 py-3 text-sm max-w-xs truncate ${c("text-slate-400","text-slate-500")}`}>{r.description}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <Btn size="sm" variant="primary" disabled={reviewingId===r.id} onClick={()=>review(r.id,"approved")}>Approve</Btn>
+                        <Btn size="sm" variant="secondary" disabled={reviewingId===r.id} onClick={()=>review(r.id,"rejected")}>Reject</Btn>
+                      </div>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+      <Card>
+        <div className={`p-4 border-b ${c("border-white/[0.06]","border-slate-200")}`}><h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>My Expense Claims</h3></div>
+        {history.length===0 && <p className={`p-4 text-sm ${c("text-slate-500","text-slate-400")}`}>You haven't submitted any expense claims yet.</p>}
+        {history.length>0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className={`border-b ${c("border-white/[0.06]","border-slate-200")}`}>{["Date","Category","Amount","Description","Status"].map(h=><th key={h} className={`text-left text-xs font-semibold px-4 py-3 ${c("text-slate-500","text-slate-400")}`}>{h}</th>)}</tr></thead>
+              <tbody>{history.map((e:any)=>(
+                <tr key={e.id} className={`border-b ${c("border-white/[0.04]","border-slate-100")} ${c("hover:bg-slate-700/20","hover:bg-slate-50")}`}>
+                  <td className={`px-4 py-3 text-sm ${c("text-slate-300","text-slate-700")}`}>{e.date}</td>
+                  <td className={`px-4 py-3 text-sm ${c("text-slate-400","text-slate-500")}`}>{e.category}</td>
+                  <td className={`px-4 py-3 text-sm font-medium ${c("text-slate-300","text-slate-700")}`}>${e.amount.toLocaleString()}</td>
+                  <td className={`px-4 py-3 text-sm ${c("text-slate-400","text-slate-500")}`}>{e.description}</td>
+                  <td className="px-4 py-3"><StatusBadge status={e.status}/></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function AddExpenseClaimModal({ onClose }: { onClose: () => void }) {
+  const [done, setDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [f, setF] = useState({ category: "Travel", date: "", amount: "", description: "" });
+  const set = (k: string, v: string) => setF(p => ({ ...p, [k]: v }));
+
+  const handleSubmit = async () => {
+    if (!(f.category && f.date && f.amount && f.description)) return;
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      const res = await fetch("/api/expense-claims", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(f),
+      });
+      const data = await res.json();
+      if (!res.ok) { setSubmitError(data.error || "Could not submit expense claim."); return; }
+      setDone(true);
+    } catch {
+      setSubmitError("Could not reach the server. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (done) return (
+    <ModalOverlay title="Expense Claim Submitted" onClose={onClose}>
+      <SuccessBanner message={`Your $${f.amount} ${f.category} expense claim has been submitted and is pending approval.`}/>
+      <Btn variant="primary" onClick={onClose}>Done</Btn>
+    </ModalOverlay>
+  );
+
+  return (
+    <ModalOverlay title="Add Expense Claim" subtitle="Submit a reimbursement request for approval" onClose={onClose}>
+      <div className="space-y-4">
+        <div>
+          <FieldLabel label="Category" required/>
+          <FSelect value={f.category} onChange={v => set("category",v)}>
+            {["Travel","Meals","Office Supplies","Software","Other"].map(t => <option key={t}>{t}</option>)}
+          </FSelect>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div><FieldLabel label="Date" required/><FInput value={f.date} onChange={v => set("date",v)} type="date"/></div>
+          <div><FieldLabel label="Amount ($)" required/><FInput value={f.amount} onChange={v => set("amount",v)} type="number" placeholder="0.00"/></div>
+        </div>
+        <div><FieldLabel label="Description" required/><FTextarea value={f.description} onChange={v => set("description",v)} placeholder="What was this expense for?"/></div>
+        {submitError && <p className="text-xs text-red-400">{submitError}</p>}
+        <div className="flex gap-2 pt-2">
+          <Btn variant="primary" onClick={handleSubmit}>{submitting ? "Submitting..." : "Submit Claim"}</Btn>
+          <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
+        </div>
+      </div>
+    </ModalOverlay>
   );
 }
 
@@ -3995,6 +4144,7 @@ function ModalSystem() {
       {activeModal === "add-objective" && <AddObjectiveModal onClose={closeModal}/>}
       {activeModal === "add-article" && <AddArticleModal onClose={closeModal}/>}
       {activeModal === "eod-detail" && <EODDetailModal onClose={closeModal}/>}
+      {activeModal === "add-expense-claim" && <AddExpenseClaimModal onClose={closeModal}/>}
     </>
   );
 }
@@ -4188,7 +4338,10 @@ function TeamEODView() {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <FInput value={date} onChange={setDate} type="date" className="max-w-[180px]"/>
-        <Btn variant="secondary" size="sm" onClick={sendReminders} disabled={reminding}>{reminding?"Sending...":"Send Reminders Now"}</Btn>
+        <div className="flex gap-2">
+          <Btn variant="secondary" size="sm" icon={Download} onClick={()=>window.location.href="/api/reports/export?type=eod"}>Download All (CSV)</Btn>
+          <Btn variant="secondary" size="sm" onClick={sendReminders} disabled={reminding}>{reminding?"Sending...":"Send Reminders Now"}</Btn>
+        </div>
       </div>
       {remindMsg && <p className={`text-xs ${c("text-slate-400","text-slate-500")}`}>{remindMsg}</p>}
       <div className="grid grid-cols-2 gap-4">
@@ -4495,7 +4648,7 @@ function PageContent({ page }: { page: Page }) {
       {page==="settings"&&<SettingsPage/>}{page==="notifications"&&<NotificationsPage/>}{page==="roles"&&<RolesPage/>}
       {page==="audit"&&<AuditPage/>}{page==="billing"&&<BillingPage/>}{page==="profile"&&<ProfilePage/>}
       {page==="employee-profile"&&<EmployeeProfilePage/>}{page==="my-work"&&<MyWorkPage/>}
-      {page==="eod"&&<EODPage/>}{page==="payroll-expenses"&&<MonthlyExpensesPage/>}
+      {page==="eod"&&<EODPage/>}{page==="payroll-expenses"&&<MonthlyExpensesPage/>}{page==="expense-claims"&&<ExpenseClaimsPage/>}
     </div>
   );
 }

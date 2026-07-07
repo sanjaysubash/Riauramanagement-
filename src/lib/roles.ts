@@ -29,7 +29,7 @@ export const ALL_ROLES = Object.keys(ROLE_LABELS);
 export const ALL_PERMISSIONS = [
   "dashboard", "employees", "departments", "teams", "projects", "tasks", "attendance", "leave",
   "payroll", "kpi", "okr", "analytics", "reports", "settings", "my-work",
-  "employee-profile", "knowledge", "calendar", "meetings", "roles", "audit", "profile", "eod",
+  "employee-profile", "knowledge", "calendar", "meetings", "roles", "audit", "profile", "eod", "expense-claims",
 ];
 
 export async function getPermissionsForRole(role: string): Promise<string[]> {

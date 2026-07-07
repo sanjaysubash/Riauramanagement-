@@ -82,6 +82,8 @@ model Employee {
   auditLogs         AuditLogEntry[]
   apiKeysCreated    ApiKey[]
   eodReports        EODReport[]
+  expenseClaims         ExpenseClaim[]  @relation("ExpenseClaimant")
+  expenseClaimsReviewed ExpenseClaim[]  @relation("ExpenseClaimReviewer")
 
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -489,6 +491,23 @@ model OrgSettings {
   notifyProjectUpdates   Boolean @default(true)
   notifyLeaveApprovals   Boolean @default(true)
   notifyPayrollProcessed Boolean @default(false)
+}
+
+// ─── EXPENSE CLAIMS ───────────────────────────────────────────────────────────
+
+model ExpenseClaim {
+  id           Int       @id @default(autoincrement())
+  employeeId   Int
+  employee     Employee  @relation("ExpenseClaimant", fields: [employeeId], references: [id])
+  category     String    // Travel | Meals | Office Supplies | Software | Other
+  amount       Int
+  date         DateTime
+  description  String
+  status       String    @default("pending") // pending | approved | rejected
+  reviewedById Int?
+  reviewedBy   Employee? @relation("ExpenseClaimReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
 }
 
 // ─── END OF DAY REPORTS ───────────────────────────────────────────────────────

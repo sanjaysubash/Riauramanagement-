@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser, isHrAdmin } from "@/lib/auth";
 import { getAttendanceRates } from "@/lib/attendance";
 
-const SENSITIVE_TYPES = ["payroll", "audit", "expenses"];
+const SENSITIVE_TYPES = ["payroll", "audit", "expenses", "eod"];
 
 function toCsv(rows: Record<string, unknown>[]): string {
   if (!rows.length) return "";
@@ -51,6 +51,9 @@ export async function GET(req: NextRequest) {
   } else if (type === "expenses") {
     const expenses = await prisma.operatingExpense.findMany({ orderBy: { month: "desc" } });
     rows = expenses.map((e) => ({ Category: e.category, Month: e.month, Amount: e.amount, Budget: e.budgetAmount }));
+  } else if (type === "eod") {
+    const reports = await prisma.eODReport.findMany({ include: { employee: true }, orderBy: { date: "desc" } });
+    rows = reports.map((r) => ({ Employee: r.employee.name, Date: r.date.toISOString().slice(0, 10), Summary: r.summary, Blockers: r.blockers ?? "", TomorrowPlan: r.tomorrowPlan ?? "" }));
   } else if (type === "okr") {
     const objectives = await prisma.objective.findMany({ include: { owner: true, keyResults: true }, orderBy: { id: "asc" } });
     rows = objectives.flatMap((o) =>
