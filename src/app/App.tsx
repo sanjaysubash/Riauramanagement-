@@ -1616,6 +1616,12 @@ function ExpenseLogPage() {
   const monthData = monthBuckets(entries);
   const weekData = weekBuckets(entries);
 
+  const deleteEntry = async (id: number) => {
+    if (!window.confirm("Delete this expense entry? This cannot be undone.")) return;
+    const res = await fetch(`/api/ops-expenses/${id}`, { method: "DELETE" });
+    if (res.ok) setEntries(prev => prev.filter(e => e.id !== id));
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader title="Expense Log" subtitle={isSuperAdmin ? "All operations payments logged" : "Log a payment you made on the company's behalf"}
@@ -1665,7 +1671,7 @@ function ExpenseLogPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr className={`border-b ${c("border-white/[0.06]","border-slate-200")}`}>
-                {[...(isSuperAdmin?["Submitted By"]:[]),"Date","Payee","Reason","Description","Mode","Amount","Screenshot"].map(h=><th key={h} className={`text-left text-xs font-semibold px-4 py-3 ${c("text-slate-500","text-slate-400")}`}>{h}</th>)}
+                {[...(isSuperAdmin?["Submitted By"]:[]),"Date","Payee","Reason","Description","Mode","Amount","Screenshot",...(isSuperAdmin?["Actions"]:[])].map(h=><th key={h} className={`text-left text-xs font-semibold px-4 py-3 ${c("text-slate-500","text-slate-400")}`}>{h}</th>)}
               </tr></thead>
               <tbody>{entries.map((e:any)=>(
                 <tr key={e.id} className={`border-b ${c("border-white/[0.04]","border-slate-100")} ${c("hover:bg-slate-700/20","hover:bg-slate-50")}`}>
@@ -1677,6 +1683,7 @@ function ExpenseLogPage() {
                   <td className="px-4 py-3"><Badge variant="info">{e.paymentMode}</Badge></td>
                   <td className={`px-4 py-3 text-sm font-semibold ${c("text-white","text-slate-900")}`}>₹{e.amount.toLocaleString("en-IN")}</td>
                   <td className="px-4 py-3">{e.screenshotUrl ? <a href={e.screenshotUrl} target="_blank" rel="noreferrer" className="text-indigo-400 text-xs hover:underline">View</a> : <span className={`text-xs ${c("text-slate-600","text-slate-400")}`}>—</span>}</td>
+                  {isSuperAdmin && <td className="px-4 py-3"><button onClick={()=>deleteEntry(e.id)} className={`w-7 h-7 rounded flex items-center justify-center ${c("text-slate-500 hover:text-red-400 hover:bg-slate-700","text-slate-400 hover:text-red-500 hover:bg-slate-200")}`}><Trash2 size={13}/></button></td>}
                 </tr>
               ))}</tbody>
             </table>
@@ -1706,12 +1713,9 @@ function AddOpsExpenseModal({ onClose }: { onClose: () => void }) {
     if (file.size > 5 * 1024 * 1024) { setSubmitError(`"${file.name}" is over the 5MB limit.`); return; }
     setUploading(true);
     try {
-      const { upload } = await import("@vercel/blob/client");
-      const blob = await upload(`ops-expenses/${authUser?.id}/${Date.now()}-${file.name}`, file, {
-        access: "public",
-        handleUploadUrl: "/api/ops-expenses/upload",
-      });
-      setScreenshotUrl(blob.url);
+      const { uploadToCloudinary } = await import("@/lib/uploadToCloudinary");
+      const result = await uploadToCloudinary(file, "/api/ops-expenses/upload");
+      setScreenshotUrl(result.url);
       setScreenshotName(file.name);
     } catch {
       setSubmitError("Could not upload the screenshot. Please try again.");
@@ -4530,15 +4534,11 @@ function MyEODView() {
 
     setUploading(true);
     try {
-      const { upload } = await import("@vercel/blob/client");
+      const { uploadToCloudinary } = await import("@/lib/uploadToCloudinary");
       for (const file of picked) {
         if (file.size > MAX_EOD_ATTACHMENT_BYTES) { setError(`"${file.name}" is over the 5MB limit.`); continue; }
-        const blob = await upload(`eod/${authUser?.id}/${Date.now()}-${file.name}`, file, {
-          access: "public",
-          handleUploadUrl: "/api/eod/upload",
-          clientPayload: String(attachments.length),
-        });
-        setAttachments(prev => [...prev, { name: file.name, url: blob.url, size: file.size, type: file.type }]);
+        const result = await uploadToCloudinary(file, "/api/eod/upload", { existingCount: String(attachments.length) });
+        setAttachments(prev => [...prev, result]);
       }
     } catch {
       setError("Could not upload file. Please try again.");
