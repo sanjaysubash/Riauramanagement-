@@ -1091,8 +1091,22 @@ function AttendancePage() {
   const [punchError, setPunchError] = useState("");
   const isAdmin = authUser?.role === "super-admin";
 
+  const now0 = new Date();
+  const [calCursor, setCalCursor] = useState({ year: now0.getFullYear(), month: now0.getMonth()+1 });
+  const [calEmployeeId, setCalEmployeeId] = useState<number | "">("");
+  const [calData, setCalData] = useState<any>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(now0.getDate());
+
   const load = () => fetch("/api/attendance").then(r => r.json()).then(setData);
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ year: String(calCursor.year), month: String(calCursor.month) });
+    if (calEmployeeId) params.set("employeeId", String(calEmployeeId));
+    fetch(`/api/attendance?${params}`).then(r => r.json()).then(d => setCalData(d.calendar));
+  }, [calCursor, calEmployeeId]);
+
+  const shiftCalMonth = (delta: number) => { setSelectedDay(null); setCalCursor(({year, month}) => { const d = new Date(year, month-1+delta, 1); return { year: d.getFullYear(), month: d.getMonth()+1 }; }); };
 
   const punch = async (action: "in" | "out") => {
     setBusy(true);
@@ -1154,6 +1168,72 @@ function AttendancePage() {
           </div>
         </Card>
       </div>
+      <Card className="mb-6">
+        <div className={`p-4 border-b flex items-center justify-between flex-wrap gap-3 ${c("border-white/[0.06]","border-slate-200")}`}>
+          <div>
+            <h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Attendance Calendar</h3>
+            <p className={`text-xs mt-0.5 ${c("text-slate-500","text-slate-400")}`}>View punch in / punch out times for previous days</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <select value={calEmployeeId} onChange={e=>{setCalEmployeeId(e.target.value?Number(e.target.value):"");setSelectedDay(null);}} className={`text-xs rounded-lg px-2 py-1.5 border ${c("bg-slate-800 border-slate-600 text-slate-200","bg-white border-slate-300 text-slate-700")}`}>
+                <option value="">Myself</option>
+                {data.team?.map((t:any)=><option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            )}
+            <button onClick={()=>shiftCalMonth(-1)} className={`w-7 h-7 rounded flex items-center justify-center ${c("text-slate-400 hover:bg-slate-700","text-slate-500 hover:bg-slate-100")}`}><ChevronLeft size={15}/></button>
+            <span className={`text-sm font-medium w-32 text-center ${c("text-slate-200","text-slate-700")}`}>{MONTH_NAMES[calCursor.month-1]} {calCursor.year}</span>
+            <button onClick={()=>shiftCalMonth(1)} className={`w-7 h-7 rounded flex items-center justify-center ${c("text-slate-400 hover:bg-slate-700","text-slate-500 hover:bg-slate-100")}`}><ChevronRight size={15}/></button>
+          </div>
+        </div>
+        <div className="p-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2">
+            {!calData ? <p className={`text-xs ${c("text-slate-500","text-slate-400")}`}>Loading…</p> : (
+              <>
+                <div className="grid grid-cols-7 mb-2">{["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=><div key={d} className={`text-center text-xs font-medium py-1 ${c("text-slate-500","text-slate-400")}`}>{d}</div>)}</div>
+                <div className="grid grid-cols-7 gap-1">
+                  {Array.from({length:calData.firstWeekday}).map((_,i)=><div key={`e${i}`}/>)}
+                  {calData.days.map((d:any)=>{
+                    const isToday = calData.todayDay===d.day;
+                    const isSelected = selectedDay===d.day;
+                    const bg = d.status==="late" ? c("bg-amber-500/25 hover:bg-amber-500/35","bg-amber-100 hover:bg-amber-200")
+                      : d.status==="present" ? c("bg-emerald-500/20 hover:bg-emerald-500/30","bg-emerald-100 hover:bg-emerald-200")
+                      : d.status==="absent" ? c("bg-red-500/20 hover:bg-red-500/30","bg-red-100 hover:bg-red-200")
+                      : c("hover:bg-slate-700/30","hover:bg-slate-50");
+                    return (
+                      <button key={d.day} onClick={()=>setSelectedDay(d.day)} className={`min-h-[52px] rounded-lg p-1.5 text-left transition-colors ${bg} ${isSelected?"ring-2 ring-indigo-500":""} ${isToday?"ring-1 ring-indigo-400":""}`}>
+                        <span className={`text-xs font-medium ${c("text-slate-300","text-slate-600")}`}>{d.day}</span>
+                        {d.punchIn && <div className={`text-[9px] mt-1 ${c("text-slate-400","text-slate-500")}`}>{fmtTime(d.punchIn)}</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className={`flex items-center gap-3 mt-3 text-[10px] ${c("text-slate-500","text-slate-400")}`}>
+                  <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-emerald-500/60"/>Present</div>
+                  <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-amber-500/60"/>Late</div>
+                  <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-sm bg-red-500/40"/>Absent</div>
+                </div>
+              </>
+            )}
+          </div>
+          <div>
+            <h4 className={`text-xs font-semibold mb-3 ${c("text-slate-300","text-slate-600")}`}>Day Details</h4>
+            {(() => {
+              const d = calData?.days.find((x:any)=>x.day===selectedDay);
+              if (!selectedDay || !d) return <p className={`text-xs ${c("text-slate-500","text-slate-400")}`}>Click a day to view punch in/out details.</p>;
+              return (
+                <div className="space-y-2 text-xs">
+                  <p className={`text-sm font-semibold mb-2 ${c("text-white","text-slate-900")}`}>{MONTH_NAMES[calCursor.month-1]} {d.day}, {calCursor.year}</p>
+                  <div className="flex justify-between"><span className={c("text-slate-500","text-slate-400")}>Punch In</span><span className={`font-medium ${c("text-slate-200","text-slate-700")}`}>{d.punchIn?fmtTime(d.punchIn):"—"}</span></div>
+                  <div className="flex justify-between"><span className={c("text-slate-500","text-slate-400")}>Punch Out</span><span className={`font-medium ${c("text-slate-200","text-slate-700")}`}>{d.punchOut?fmtTime(d.punchOut):"—"}</span></div>
+                  <div className="flex justify-between"><span className={c("text-slate-500","text-slate-400")}>Hours Worked</span><span className={`font-medium ${c("text-slate-200","text-slate-700")}`}>{d.hoursWorked!=null?fmtHours(d.hoursWorked):"—"}</span></div>
+                  <div className="flex justify-between items-center"><span className={c("text-slate-500","text-slate-400")}>Status</span>{d.status==="present"?<Badge variant="success">Present</Badge>:d.status==="late"?<Badge variant="warning">Late</Badge>:d.status==="absent"?<Badge variant="danger">Absent</Badge>:<Badge variant="default">No Record</Badge>}</div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      </Card>
       {isAdmin && (
         <Card className="mb-6">
           <div className={`p-4 border-b ${c("border-white/[0.06]","border-slate-200")}`}><h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Today — All Employees</h3></div>

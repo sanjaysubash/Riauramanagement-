@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const employeeIdParam = new URL(req.url).searchParams.get("employeeId");
+  const searchParams = new URL(req.url).searchParams;
+  const employeeIdParam = searchParams.get("employeeId");
   const targetId = employeeIdParam ? Number(employeeIdParam) : user.id;
   if (targetId !== user.id && !canApprove(user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -24,6 +25,37 @@ export async function GET(req: NextRequest) {
   const now = new Date();
   const today = startOfDay(now);
   const monthStart = startOfMonth(now);
+
+  const yearParam = Number(searchParams.get("year")) || now.getFullYear();
+  const monthParam = Number(searchParams.get("month")) || now.getMonth() + 1;
+  const calMonthStart = new Date(yearParam, monthParam - 1, 1);
+  const calMonthEnd = new Date(yearParam, monthParam, 1);
+  const daysInMonth = new Date(yearParam, monthParam, 0).getDate();
+  const firstWeekday = (calMonthStart.getDay() + 6) % 7; // 0 = Monday
+
+  const calRows = await prisma.attendance.findMany({
+    where: { employeeId: targetId, date: { gte: calMonthStart, lt: calMonthEnd } },
+  });
+  const calRowByDay = new Map(calRows.map((r) => [new Date(r.date).getDate(), r]));
+  const isCurrentCalMonth = yearParam === now.getFullYear() && monthParam === now.getMonth() + 1;
+  const calendar = {
+    year: yearParam,
+    month: monthParam,
+    daysInMonth,
+    firstWeekday,
+    todayDay: isCurrentCalMonth ? now.getDate() : null,
+    days: Array.from({ length: daysInMonth }, (_, i) => {
+      const day = i + 1;
+      const row = calRowByDay.get(day);
+      return {
+        day,
+        punchIn: row?.punchIn ?? null,
+        punchOut: row?.punchOut ?? null,
+        hoursWorked: row?.hoursWorked ?? null,
+        status: row?.status ?? null,
+      };
+    }),
+  };
 
   const todayRow = await prisma.attendance.findUnique({
     where: { employeeId_date: { employeeId: targetId, date: today } },
@@ -105,6 +137,7 @@ export async function GET(req: NextRequest) {
     })),
     team,
     todayAll,
+    calendar,
   });
 }
 
