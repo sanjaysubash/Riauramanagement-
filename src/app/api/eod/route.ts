@@ -32,7 +32,7 @@ type Attachment = { name: string; url: string; size: number; type: string };
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // 5MB, mirrors /api/eod/upload
-const ALLOWED_BLOB_HOST_SUFFIX = ".public.blob.vercel-storage.com";
+const ALLOWED_ATTACHMENT_HOST = "res.cloudinary.com";
 
 function parseAttachments(json: string): Attachment[] {
   try {
@@ -55,7 +55,7 @@ function sanitizeAttachments(input: unknown): { attachments: Attachment[]; error
   for (const item of input) {
     if (!item || typeof item !== "object") return { attachments: [], error: "Invalid attachment." };
     const { name, url, size, type } = item as Record<string, unknown>;
-    if (typeof url !== "string" || !url.startsWith("https://") || !url.includes(ALLOWED_BLOB_HOST_SUFFIX)) {
+    if (typeof url !== "string" || !url.startsWith(`https://${ALLOWED_ATTACHMENT_HOST}/`)) {
       return { attachments: [], error: "Attachments must be uploaded via the file picker." };
     }
     if (typeof size !== "number" || size < 0 || size > MAX_ATTACHMENT_BYTES) {
