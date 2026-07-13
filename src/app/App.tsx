@@ -1649,12 +1649,12 @@ function AddExpenseClaimModal({ onClose }: { onClose: () => void }) {
 // canSubmitOpsExpense allows) logs a payment; only super_admin sees the full
 // list, CSV export, and spend charts. See src/lib/auth.ts for the access gate.
 
-function monthBuckets(entries: any[], n = 6) {
+function monthBuckets(entries: any[], n = 6, offset = 0) {
   const buckets: Record<string, number> = {};
   const order: string[] = [];
   const now = new Date();
   for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const d = new Date(now.getFullYear(), now.getMonth() - offset - i, 1);
     const key = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
     buckets[key] = 0;
     order.push(key);
@@ -1674,8 +1674,9 @@ function startOfWeek(d: Date) {
   return x;
 }
 
-function weekBuckets(entries: any[], n = 8) {
+function weekBuckets(entries: any[], n = 8, offset = 0) {
   const thisWeek = startOfWeek(new Date());
+  thisWeek.setDate(thisWeek.getDate() - offset * 7);
   const buckets: Record<string, number> = {};
   const order: string[] = [];
   for (let i = n - 1; i >= 0; i--) {
@@ -1717,6 +1718,8 @@ function ExpenseLogPage() {
   const { openModal, activeModal } = useModal();
   const [entries, setEntries] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState("date-desc");
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [weekOffset, setWeekOffset] = useState(0);
   const isSubmitter = authUser?.email === VIGNESH_EMAIL;
   const isSuperAdmin = authUser?.role === "super-admin";
 
@@ -1727,8 +1730,8 @@ function ExpenseLogPage() {
 
   if (!isSubmitter && !isSuperAdmin) return null;
 
-  const monthData = monthBuckets(entries);
-  const weekData = weekBuckets(entries);
+  const monthData = monthBuckets(entries, 6, monthOffset);
+  const weekData = weekBuckets(entries, 8, weekOffset);
   const now = new Date();
   const thisWeekStart = startOfWeek(now);
   const monthTotal = entries.filter(e => { const d = new Date(e.rawDate); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); }).reduce((sum, e) => sum + e.amount, 0);
@@ -1761,7 +1764,16 @@ function ExpenseLogPage() {
       {isSuperAdmin && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className="p-5">
-            <h3 className={`text-sm font-semibold mb-4 ${c("text-white","text-slate-900")}`}>Spend by Month</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Spend by Month</h3>
+                <p className={`text-xs mt-0.5 ${c("text-slate-500","text-slate-400")}`}>{monthData[0]?.label} – {monthData[monthData.length-1]?.label}</p>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={()=>setMonthOffset(o=>o+6)} title="Previous 6 months" className={`w-7 h-7 rounded flex items-center justify-center ${c("text-slate-400 hover:bg-slate-700","text-slate-500 hover:bg-slate-100")}`}><ChevronLeft size={15}/></button>
+                <button onClick={()=>setMonthOffset(o=>Math.max(0,o-6))} disabled={monthOffset===0} title="Next 6 months" className={`w-7 h-7 rounded flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none ${c("text-slate-400 hover:bg-slate-700","text-slate-500 hover:bg-slate-100")}`}><ChevronRight size={15}/></button>
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={monthData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={col.chartGrid}/>
@@ -1773,7 +1785,16 @@ function ExpenseLogPage() {
             </ResponsiveContainer>
           </Card>
           <Card className="p-5">
-            <h3 className={`text-sm font-semibold mb-4 ${c("text-white","text-slate-900")}`}>Spend by Week</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className={`text-sm font-semibold ${c("text-white","text-slate-900")}`}>Spend by Week</h3>
+                <p className={`text-xs mt-0.5 ${c("text-slate-500","text-slate-400")}`}>{weekData[0]?.label} – {weekData[weekData.length-1]?.label}</p>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={()=>setWeekOffset(o=>o+8)} title="Previous 8 weeks" className={`w-7 h-7 rounded flex items-center justify-center ${c("text-slate-400 hover:bg-slate-700","text-slate-500 hover:bg-slate-100")}`}><ChevronLeft size={15}/></button>
+                <button onClick={()=>setWeekOffset(o=>Math.max(0,o-8))} disabled={weekOffset===0} title="Next 8 weeks" className={`w-7 h-7 rounded flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none ${c("text-slate-400 hover:bg-slate-700","text-slate-500 hover:bg-slate-100")}`}><ChevronRight size={15}/></button>
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={weekData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={col.chartGrid}/>
@@ -1804,7 +1825,7 @@ function ExpenseLogPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr className={`border-b ${c("border-white/[0.06]","border-slate-200")}`}>
-                {[...(isSuperAdmin?["Submitted By"]:[]),"Date","Payee","Reason","Description","Mode","Amount","Screenshot",...(isSuperAdmin?["Actions"]:[])].map(h=><th key={h} className={`text-left text-xs font-semibold px-4 py-3 ${c("text-slate-500","text-slate-400")}`}>{h}</th>)}
+                {[...(isSuperAdmin?["Submitted By"]:[]),"Date","Payee","Reason","Description","Mode","Amount","Screenshot","Actions"].map(h=><th key={h} className={`text-left text-xs font-semibold px-4 py-3 ${c("text-slate-500","text-slate-400")}`}>{h}</th>)}
               </tr></thead>
               <tbody>{sortedEntries.map((e:any)=>(
                 <tr key={e.id} className={`border-b ${c("border-white/[0.04]","border-slate-100")} ${c("hover:bg-slate-700/20","hover:bg-slate-50")}`}>
@@ -1816,7 +1837,12 @@ function ExpenseLogPage() {
                   <td className="px-4 py-3"><Badge variant="info">{e.paymentMode}</Badge></td>
                   <td className={`px-4 py-3 text-sm font-semibold ${c("text-white","text-slate-900")}`}>₹{e.amount.toLocaleString("en-IN")}</td>
                   <td className="px-4 py-3">{e.screenshotUrl ? <a href={e.screenshotUrl} target="_blank" rel="noreferrer" className="text-indigo-400 text-xs hover:underline">View</a> : <span className={`text-xs ${c("text-slate-600","text-slate-400")}`}>—</span>}</td>
-                  {isSuperAdmin && <td className="px-4 py-3"><button onClick={()=>deleteEntry(e.id)} className={`w-7 h-7 rounded flex items-center justify-center ${c("text-slate-500 hover:text-red-400 hover:bg-slate-700","text-slate-400 hover:text-red-500 hover:bg-slate-200")}`}><Trash2 size={13}/></button></td>}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <button title="Edit entry" onClick={()=>openModal("add-ops-expense",{entry:e})} className={`w-7 h-7 rounded flex items-center justify-center ${c("text-slate-500 hover:text-indigo-400 hover:bg-slate-700","text-slate-400 hover:text-indigo-500 hover:bg-slate-200")}`}><Edit2 size={13}/></button>
+                      <button title="Delete entry" onClick={()=>deleteEntry(e.id)} className={`w-7 h-7 rounded flex items-center justify-center ${c("text-slate-500 hover:text-red-400 hover:bg-slate-700","text-slate-400 hover:text-red-500 hover:bg-slate-200")}`}><Trash2 size={13}/></button>
+                    </div>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>
@@ -1829,12 +1855,17 @@ function ExpenseLogPage() {
 
 function AddOpsExpenseModal({ onClose }: { onClose: () => void }) {
   const { authUser } = useAuth();
+  const { modalData } = useModal();
+  const editingEntry = modalData?.entry ?? null;
+  const isEditing = !!editingEntry;
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [f, setF] = useState({ payeeName: "", reason: "", description: "", paymentMode: "cash", amount: "", date: new Date().toISOString().slice(0,10) });
-  const [screenshotUrl, setScreenshotUrl] = useState("");
+  const [f, setF] = useState(editingEntry
+    ? { payeeName: editingEntry.payeeName, reason: editingEntry.reason, description: editingEntry.description || "", paymentMode: editingEntry.paymentMode, amount: String(editingEntry.amount), date: editingEntry.rawDate.slice(0,10) }
+    : { payeeName: "", reason: "", description: "", paymentMode: "cash", amount: "", date: new Date().toISOString().slice(0,10) });
+  const [screenshotUrl, setScreenshotUrl] = useState(editingEntry?.screenshotUrl || "");
   const [screenshotName, setScreenshotName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const set = (k: string, v: string) => setF(p => ({ ...p, [k]: v }));
@@ -1864,8 +1895,8 @@ function AddOpsExpenseModal({ onClose }: { onClose: () => void }) {
     setSubmitting(true);
     setSubmitError("");
     try {
-      const res = await fetch("/api/ops-expenses", {
-        method: "POST",
+      const res = await fetch(isEditing ? `/api/ops-expenses/${editingEntry.id}` : "/api/ops-expenses", {
+        method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...f, screenshotUrl: f.paymentMode === "online" ? screenshotUrl : null }),
       });
@@ -1880,14 +1911,14 @@ function AddOpsExpenseModal({ onClose }: { onClose: () => void }) {
   };
 
   if (done) return (
-    <ModalOverlay title="Expense Logged" onClose={onClose}>
-      <SuccessBanner message={`Your ₹${f.amount} payment to ${f.payeeName} has been logged.`}/>
+    <ModalOverlay title={isEditing ? "Expense Updated" : "Expense Logged"} onClose={onClose}>
+      <SuccessBanner message={isEditing ? `The payment to ${f.payeeName} has been updated.` : `Your ₹${f.amount} payment to ${f.payeeName} has been logged.`}/>
       <Btn variant="primary" onClick={onClose}>Done</Btn>
     </ModalOverlay>
   );
 
   return (
-    <ModalOverlay title="Log an Expense" subtitle="Record a payment made on the company's behalf" onClose={onClose}>
+    <ModalOverlay title={isEditing ? "Edit Expense" : "Log an Expense"} subtitle={isEditing ? "Update the details of this payment" : "Record a payment made on the company's behalf"} onClose={onClose}>
       <div className="space-y-4">
         <div><FieldLabel label="Paid To" required/><FInput value={f.payeeName} onChange={v => set("payeeName",v)} placeholder="Vendor or person paid"/></div>
         <div><FieldLabel label="Reason for Payment" required/><FInput value={f.reason} onChange={v => set("reason",v)} placeholder="e.g. Office supplies, courier"/></div>
@@ -1920,7 +1951,7 @@ function AddOpsExpenseModal({ onClose }: { onClose: () => void }) {
         )}
         {submitError && <p className="text-xs text-red-400">{submitError}</p>}
         <div className="flex gap-2 pt-2">
-          <Btn variant="primary" disabled={uploading} onClick={handleSubmit}>{submitting ? "Submitting..." : "Log Expense"}</Btn>
+          <Btn variant="primary" disabled={uploading} onClick={handleSubmit}>{submitting ? "Saving..." : (isEditing ? "Save Changes" : "Log Expense")}</Btn>
           <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
         </div>
       </div>
